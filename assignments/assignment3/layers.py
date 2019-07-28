@@ -150,24 +150,16 @@ class ConvolutionalLayer:
         
         # It's ok to use loops for going over width and height
         # but try to avoid having any other loops
-        #print("X:"+str(X))
         res = np.zeros((batch_size, out_height, out_width, self.out_channels))
-        #for b in range(batch_size):
+        self.X = X
+
         for y in range(out_height):
             for x in range(out_width):
                 xp = X[:,y:y+self.filter_size,x:x+self.filter_size,:]
                 xpr = np.reshape(xp, (batch_size, self.filter_size * self.filter_size * channels))
-                #print("X_part:" + str(xpr))
-                #print("X_part_shape:" + str(xpr.shape))
                 wr = np.reshape(self.W.value, (self.filter_size*self.filter_size*channels, self.out_channels))
-                #print("W shape:"+str(self.W.value.shape))
-                #print("xpr",xpr)
-                #print("wr",wr)
                 m = np.dot(xpr , wr) + self.B.value
-                #print("m",m)
-                res[:,y,x,:] = m
-                #print("res[:,y,x,:]", res[:,y,x,:])
-        
+                res[:,y,x,:] = m        
         return res
 
 
@@ -178,28 +170,65 @@ class ConvolutionalLayer:
         # Just do it the same number of times and accumulate gradients
 
         #batch_size, height, width, channels = d_out.shape
+        batch_size, height, width, channels = self.X.shape
         _, out_height, out_width, out_channels = d_out.shape
 
         # TODO: Implement backward pass
         # Same as forward, setup variables of the right shape that
         # aggregate input gradient and fill them for every location
         # of the output
-        print("d_out.shape",d_out.shape)
+        #print("d_out.shape",d_out.shape)
 
+        res_dx = np.zeros((batch_size, height, width, channels))
+        #print("res_dx.shape",res_dx.shape)
         # Try to avoid having any other loops here too
         for y in range(out_height):
             for x in range(out_width):
                 # TODO: Implement backward pass for specific location
                 # Aggregate gradients for both the input and
                 # the parameters (W and B)
+                #print("d_out.shape",d_out.shape)
+                d_out_part = d_out[:,y,x,:]
+                #print("d_out_part.shape",d_out_part.shape)
+                #print("d_out_part->")
+                #print(d_out_part)
+                xp = self.X[:,y:y+self.filter_size,x:x+self.filter_size,:]
+                xpr = np.reshape(xp, (batch_size, self.filter_size * self.filter_size * channels))
+                #print("xp.shape",xp.shape)
+                #print("xpr.shape",xpr.shape)
+
+                dw = xpr.T.dot(d_out_part)
+                #print("dw->")
+                #print(dw)
+                
+                dwr = np.reshape(dw, self.W.value.shape)
+                
+                #print("dwr.shape", dwr.shape)
+
+                bg = np.dot(np.ones([1, d_out_part.shape[0]]), d_out_part)[0]
+                #print("B.shape",self.B.value.shape)
+                #print("bg.shape", bg.shape)
+                #print(self.B.value)
+                #print(bg)
+
+                dx = d_out_part.dot(self.W.value.T)
+                #print("dx",dx)
+                
+                res_dx[:,x:x+self.filter_size,y:y+self.filter_size,:] += dx
+                
+                
+                self.B.grad += bg
+                self.W.grad += dwr
+
+                #print("dx.shape", dx.shape)
                 
                 #self.B.grad = np.dot(np.ones([1, d_out.shape[0]]), d_out)
                 #dw = self.X.T.dot(d_out)
                 #self.W.grad = dw
                 #dx = d_out.dot(self.W.value.T)
-                pass
+                
 
-        raise Exception("Not implemented!")
+        return res_dx
 
     def params(self):
         return { 'W': self.W, 'B': self.B }
